@@ -14,6 +14,7 @@ CubeObject objects[] = {
 LightSource lights[] =
 {
     {6,6,0,1,1,1},
+    {0,0,0,0.6f,0.6f,0.6f},
 };
 Camera* camera;
 
@@ -23,6 +24,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 
 int main() {
     camera = malloc(sizeof(Camera));
+
     CAMERA_init(camera);
     if (!glfwInit()) return -1;
     GLFWwindow* window = glfwCreateWindow(800, 600, "cglib window", NULL, NULL);
@@ -41,12 +43,15 @@ int main() {
     LIGHT_ambient(0.1f,0.1f,0.1f);
     while (!glfwWindowShouldClose(window)) {
         CAMERA_movement(camera, window);
+        lights[1].x = camera->camX;
+        lights[1].y = camera->camY;
+        lights[1].z = camera->camZ;
 
         glClearColor(0.1,0.1,0.2,1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         CAMERA_perspective(camera, 800, 600);
-        LIGHT_apply(lights,1);
+        LIGHT_apply(lights,2);
         CUBE_drawArray(objects, 2);
 
         glfwSwapBuffers(window);

@@ -4,7 +4,7 @@
 
 typedef struct
 {
-    int x, y, z, r, g, b;
+    float x, y, z, r, g, b;
 } LightSource;
 
 void LIGHT_enable();
