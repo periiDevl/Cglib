@@ -15,10 +15,7 @@ void LIGHT_apply(LightSource lights[], int size)
         GLenum id = GL_LIGHT0 + i;
         glEnable(id);
 
-        // Position: w = 1.0 means point light
         GLfloat pos[] = { lights[i].x, lights[i].y, lights[i].z, 1.0f };
-
-        // Light color
         GLfloat color[] = { lights[i].r, lights[i].g, lights[i].b, 1.0f };
 
         glLightfv(id, GL_POSITION, pos);

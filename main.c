@@ -10,7 +10,7 @@
 CubeObject objects[] = {
     {0,0,0,0.7,0.7,0.7,3,3,3},
     {2,3,4,0.15,0.5,0.2, 2, 2, 4},
-    {-3,-3,-3,0.15,0.5,0.2,3,1,2},
+    {-3,-3,-3,0.15,0.5,0.2,30,1,30},
 };
 LightSource lights[] =
 {
@@ -45,7 +45,7 @@ int main() {
     while (!glfwWindowShouldClose(window)) {
         CAMERA_movement(camera, window);
         
-        glClearColor(0.2,0.2,0.2,1);
+        glClearColor(0.7,0.7,0.7,1);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         
         CAMERA_perspective(camera, 1280, 720);
