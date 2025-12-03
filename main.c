@@ -8,13 +8,14 @@
 #include"Camera.h"
 
 CubeObject objects[] = {
-    {0,0,0,1,1,1},
-    {1,1,1,1,0,0},
+    {0,0,0,0.7,0.7,0.7,3,3,3},
+    {2,3,4,0.15,0.5,0.2, 2, 2, 4},
+    {-3,-3,-3,0.15,0.5,0.2,3,1,2},
 };
 LightSource lights[] =
 {
-    {6,6,0,1,1,1},
-    {0,0,0,0.6f,0.6f,0.6f},
+    {6,6,6,4,4,4,0,0},
+    {0,0,0,5.0f,5.0f,5.0f, 0.4f, 0.1f},
 };
 Camera* camera;
 
@@ -27,7 +28,7 @@ int main() {
 
     CAMERA_init(camera);
     if (!glfwInit()) return -1;
-    GLFWwindow* window = glfwCreateWindow(800, 600, "cglib window", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(1280, 720, "cglib window", NULL, NULL);
     if (!window) { glfwTerminate(); return -1; }
 
     glfwMakeContextCurrent(window);
@@ -43,16 +44,16 @@ int main() {
     LIGHT_ambient(0.1f,0.1f,0.1f);
     while (!glfwWindowShouldClose(window)) {
         CAMERA_movement(camera, window);
+        
+        glClearColor(0.2,0.2,0.2,1);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        
+        CAMERA_perspective(camera, 1280, 720);
+        LIGHT_apply(lights,sizeof(lights)/sizeof(LightSource));
+        CUBE_drawArray(objects, sizeof(objects)/sizeof(CubeObject));
         lights[1].x = camera->camX;
         lights[1].y = camera->camY;
         lights[1].z = camera->camZ;
-
-        glClearColor(0.1,0.1,0.2,1);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-        CAMERA_perspective(camera, 800, 600);
-        LIGHT_apply(lights,2);
-        CUBE_drawArray(objects, 2);
 
         glfwSwapBuffers(window);
         glfwPollEvents();

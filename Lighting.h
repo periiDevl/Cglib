@@ -5,6 +5,7 @@
 typedef struct
 {
     float x, y, z, r, g, b;
+    float linearFallOff, QuadraticFalloff;
 } LightSource;
 
 void LIGHT_enable();

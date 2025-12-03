@@ -31,7 +31,12 @@ void CAMERA_perspective(Camera* camera, int windowX, int windowY)
         0,1,0
     );
 }
-
+void CAMERA_rotation(Camera* camera)
+{
+    camera->camForwardX = cosf(camera->yaw * M_PI/180) * cosf(camera->pitch * M_PI/180);
+    camera->camForwardY = sinf(camera->pitch * M_PI/180);
+    camera->camForwardZ = sinf(camera->yaw * M_PI/180) * cosf(camera->pitch * M_PI/180);
+}
 void CAMERA_mouse(Camera* camera, double xMouse, double yMouse)
 {
     if (firstMouse) {lastMouseX = xMouse;lastMouseY = yMouse;firstMouse = 0;}
@@ -50,10 +55,8 @@ void CAMERA_mouse(Camera* camera, double xMouse, double yMouse)
 
     if (camera->pitch > 89.0f) camera->pitch = 89.0f;
     if (camera->pitch < -89.0f) camera->pitch = -89.0f;
+    CAMERA_rotation(camera);
 
-    camera->camForwardX = cosf(camera->yaw * M_PI/180) * cosf(camera->pitch * M_PI/180);
-    camera->camForwardY = sinf(camera->pitch * M_PI/180);
-    camera->camForwardZ = sinf(camera->yaw * M_PI/180) * cosf(camera->pitch * M_PI/180);
 }
 void CAMERA_movement(Camera* camera, GLFWwindow* window)
 {
@@ -64,7 +67,15 @@ void CAMERA_movement(Camera* camera, GLFWwindow* window)
 
     float len = sqrt(rightX*rightX + rightZ*rightZ);
     rightX /= len; rightZ /= len;
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {camera->yaw -= 2;}
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {camera->yaw += 2;}
 
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {camera->pitch -= 2;}
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {camera->pitch += 2;}
+    if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {camera->camY -= camera->speed;}
+    if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {camera->camY +=camera->speed;}
+    
+    CAMERA_rotation(camera);
     if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS) {
         camera->camX += camera->camForwardX * camera->speed;
         camera->camY += camera->camForwardY * camera->speed;

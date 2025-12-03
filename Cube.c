@@ -25,10 +25,11 @@ void CUBE_draw()
 }
 void CUBE_drawArray(CubeObject obj[], int size)
 {
-    for (int i=0; i<size;i++)
+    for (int i = 0; i < size; i++)
     {
         glPushMatrix();
         glTranslatef(obj[i].x, obj[i].y, obj[i].z);
+        glScalef(obj[i].sizex, obj[i].sizey, obj[i].sizez); // scale per axis
         glColor3f(obj[i].r, obj[i].g, obj[i].b);
         CUBE_draw();
         glPopMatrix();

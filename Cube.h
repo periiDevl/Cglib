@@ -6,6 +6,7 @@
 typedef struct {
     float x, y, z;
     float r, g, b;
+    float sizex, sizey, sizez;
 } CubeObject;
 
 void CUBE_setPosition(CubeObject *cube, int x, int y, int z);

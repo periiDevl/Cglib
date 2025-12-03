@@ -13,7 +13,7 @@ typedef struct
     float speed;
 } Camera;
 
-
+void CAMERA_rotation(Camera* camera);
 void CAMERA_init(Camera* camera);
 void CAMERA_perspective(Camera* camera, int windowX, int windowY);
 void CAMERA_mouse(Camera* camera, double xMouse, double yMouse);
