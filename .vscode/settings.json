@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "lighting.h": "c"
+        "lighting.h": "c",
+        "stdlib.h": "c"
     }
 }
