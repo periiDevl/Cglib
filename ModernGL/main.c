@@ -2,6 +2,7 @@
 #include"GLFW/glfw3.h"
 #include<stdio.h>
 #include<stdlib.h>
+#include<math.h>
 void resizeGlViewportCallback(GLFWwindow* window, int width, int height)
 {
     glViewport(0,0,width,height);
@@ -24,9 +25,10 @@ const char *vertexShaderSource = "#version 330 core\n"
     "}\0";
 const char *fragmentShaderSource = "#version 330 core\n"
     "out vec4 FragColor;\n"
+    "uniform vec4 color;"
     "void main()\n"
     "{\n"
-    "   FragColor = vec4(0.5f, 0.5f, 0.5f, 1.0f);\n"
+    "   FragColor = color;\n"
     "}\0";
 int main()
 {
@@ -97,12 +99,18 @@ int main()
         {
             glfwSetWindowShouldClose(window, 1);
         }
-        glClearColor(0.2f,0.2f,0.0f,1.0f);
+        glClearColor(0.1f,0.1f,0.1f,1.0f);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(shaderProgram);
         glBindVertexArray(VAO);
         glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, EBO);
         glDrawElements(GL_TRIANGLES, 6, GL_UNSIGNED_INT, 0);
+
+        float timeValue = glfwGetTime();
+        float greenValue = (sin(timeValue) / 2.0f) + 0.5f;
+        int vertexColorLocation = glGetUniformLocation(shaderProgram, "color");
+        glUseProgram(shaderProgram);
+        glUniform4f(vertexColorLocation, greenValue, 0.0f, 0.0f, 1.0f);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
