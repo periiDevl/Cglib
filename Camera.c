@@ -16,6 +16,33 @@ void CAMERA_init(Camera* camera)
     camera->camForwardZ = -1.0f;
     camera->fov = 70.0f;
 }
+void CAMERA_middleMouseLogic(Camera* cam, GLFWwindow* window) {
+    static double lastMouseX = 0.0, lastMouseY = 0.0;
+    static bool firstMiddleMouse = true;
+
+    if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_MIDDLE) == GLFW_PRESS) {
+        double mouseX, mouseY;
+        glfwGetCursorPos(window, &mouseX, &mouseY);
+        if (firstMiddleMouse) {
+            lastMouseX = mouseX;
+            lastMouseY = mouseY;
+            firstMiddleMouse = false;
+        }
+        double deltaX = mouseX - lastMouseX;
+        double deltaY = mouseY - lastMouseY;
+        float sensitivity = 0.1f;
+        cam->yaw   += deltaX * sensitivity;
+        cam->pitch -= deltaY * sensitivity;
+        if (cam->pitch > 89.0f) cam->pitch = 89.0f;
+        if (cam->pitch < -89.0f) cam->pitch = -89.0f;
+
+        lastMouseX = mouseX;
+        lastMouseY = mouseY;
+    } else {
+        firstMiddleMouse = true;
+    }
+}
+
 void CAMERA_perspective(Camera* camera, int windowX, int windowY)
 {
     glMatrixMode(GL_PROJECTION);
@@ -67,11 +94,11 @@ void CAMERA_movement(Camera* camera, GLFWwindow* window)
 
     float len = sqrt(rightX*rightX + rightZ*rightZ);
     rightX /= len; rightZ /= len;
-    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {camera->yaw -= 2;}
-    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {camera->yaw += 2;}
+    if (glfwGetKey(window, GLFW_KEY_LEFT) == GLFW_PRESS) {camera->yaw -= 1;}
+    if (glfwGetKey(window, GLFW_KEY_RIGHT) == GLFW_PRESS) {camera->yaw += 1;}
 
-    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {camera->pitch -= 2;}
-    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {camera->pitch += 2;}
+    if (glfwGetKey(window, GLFW_KEY_DOWN) == GLFW_PRESS) {camera->pitch -= 0.7f;}
+    if (glfwGetKey(window, GLFW_KEY_UP) == GLFW_PRESS) {camera->pitch += 0.7f;}
     if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS) {camera->camY -= camera->speed;}
     if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS) {camera->camY +=camera->speed;}
     

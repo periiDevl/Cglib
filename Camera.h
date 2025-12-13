@@ -4,6 +4,7 @@
 #include <math.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdbool.h>
 typedef struct
 {
     float camX, camY, camZ;
@@ -12,7 +13,7 @@ typedef struct
     float fov;
     float speed;
 } Camera;
-
+void CAMERA_middleMouseLogic(Camera* cam, GLFWwindow* window);
 void CAMERA_rotation(Camera* camera);
 void CAMERA_init(Camera* camera);
 void CAMERA_perspective(Camera* camera, int windowX, int windowY);
