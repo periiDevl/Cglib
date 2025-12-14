@@ -14,7 +14,7 @@ void CAMERA_init(Camera* camera)
     camera->camForwardX = 0.0f;
     camera->camForwardY = 0.0f;
     camera->camForwardZ = -1.0f;
-    camera->fov = 70.0f;
+    camera->fov = 80.0f;
 }
 void CAMERA_middleMouseLogic(Camera* cam, GLFWwindow* window) {
     static double lastMouseX = 0.0, lastMouseY = 0.0;
