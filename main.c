@@ -174,7 +174,7 @@ int main() {
         nk_glfw3_new_frame(&glfw);
         
         // ===== UI =====
-        if (nk_begin(ctx, "Demo Panel", nk_rect(0, 0, 300, 720),
+        if (nk_begin(ctx, "Demo Panel", nk_rect(0, 0, 250, 720),
             NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE|NK_WINDOW_TITLE)) {
             
             // Some text labels
@@ -236,7 +236,16 @@ int main() {
             if (nk_button_label(ctx, "C")) printf("C\n");
         }
         nk_end(ctx);
-        
+        if (nk_begin(ctx, "FIles and stuff", nk_rect(250, 0, 1280-250, 100),
+            NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE)) {
+            
+            nk_layout_row_dynamic(ctx, 20, 1);
+            nk_label(ctx, "Yayy this is working!", NK_TEXT_LEFT);
+            nk_label(ctx, "Adding here: Export to OpenVision", NK_TEXT_CENTERED);
+            nk_label(ctx, "Adding here: Export to Cglib", NK_TEXT_CENTERED);
+            nk_label(ctx, "Adding here: Export to Add scripts", NK_TEXT_CENTERED);
+        }
+        nk_end(ctx);
         // Render 3D scene
         glEnable(GL_DEPTH_TEST);
         CAMERA_perspective(camera, 1280, 720);
