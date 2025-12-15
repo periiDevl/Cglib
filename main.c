@@ -146,7 +146,7 @@ int main() {
     printf("Click gizmo axes to drag!\n");
     printf("WASD + Mouse - Camera control\n");
     printf("================\n");
-    
+    bool openBuild =0;
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
@@ -236,17 +236,44 @@ int main() {
             if (nk_button_label(ctx, "C")) printf("C\n");
         }
         nk_end(ctx);
-        if (nk_begin(ctx, "FIles and stuff", nk_rect(250, 0, 1280-250, 100),
-            NK_WINDOW_BORDER|NK_WINDOW_MOVABLE|NK_WINDOW_SCALABLE)) {
-            
-            nk_layout_row_dynamic(ctx, 20, 1);
-            nk_label(ctx, "Yayy this is working!", NK_TEXT_LEFT);
-            nk_label(ctx, "Adding here: Export to OpenVision", NK_TEXT_CENTERED);
-            nk_label(ctx, "Adding here: Export to Cglib", NK_TEXT_CENTERED);
-            nk_label(ctx, "Adding here: Export to Add scripts", NK_TEXT_CENTERED);
+        if (nk_begin(ctx, "FIles and stuff",
+            nk_rect(250, 0, 1280-250, 100),
+            NK_WINDOW_BORDER | NK_WINDOW_MOVABLE | NK_WINDOW_SCALABLE))
+        {
+            nk_layout_row_dynamic(ctx, 30, 2);
+
+            if (nk_button_label(ctx, "Open tools")) {
+                openBuild = 1;
+            }
+
+            if (openBuild) {
+                if (nk_popup_begin(ctx, NK_POPUP_STATIC,
+                    "TOOLS popup",
+                    NK_WINDOW_BORDER | NK_WINDOW_MOVABLE,
+                    nk_rect(300, 120, 300, 200)))
+                {
+                    nk_layout_row_dynamic(ctx, 30, 1);
+                    nk_label(ctx, "Your tools are here:", NK_TEXT_LEFT);
+                    nk_layout_row_dynamic(ctx, 30, 1);
+                    nk_label(ctx, "Tranformation, Scale, Rotation", NK_TEXT_LEFT);
+                    nk_layout_row_dynamic(ctx, 30, 1);
+                    nk_label(ctx, "Place camera, Place collisions, DEBUG MODE", NK_TEXT_LEFT);
+                    nk_layout_row_dynamic(ctx, 30, 1);
+                    nk_label(ctx, "Simulate in Qemu ARM9, Simulate..", NK_TEXT_LEFT);
+                    nk_label(ctx, "T", NK_TEXT_LEFT);
+
+                    if (nk_button_label(ctx, "Close")) {
+                        nk_popup_close(ctx);
+                        openBuild = 0;
+                    }
+
+                    nk_popup_end(ctx);
+                }
+            }
         }
         nk_end(ctx);
-        // Render 3D scene
+
+        
         glEnable(GL_DEPTH_TEST);
         CAMERA_perspective(camera, 1280, 720);
         LIGHT_apply(lights, sizeof(lights) / sizeof(LightSource));
