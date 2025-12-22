@@ -5,13 +5,16 @@
 #include <stdlib.h>
 #include <time.h>
 #include <math.h>
-#include"ShaderScripts.h"
-#include"HardCodedModels.h"
+#include "ShaderScripts.h"
+#include "HardCodedModels.h"
 #include "ShaderHelper.h"
-#include"Camera.h"
-
+#include "Camera.h"
+#include"Cube.h"
+#include"Lighting.h"
 const int screenX = 1280;
 const int screenY = 720;
+const unsigned int SHADOW_WIDTH = 1024;
+const unsigned int SHADOW_HEIGHT = 1024;
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height) {
     glViewport(0, 0, width, height);
@@ -28,22 +31,6 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 void processInput(GLFWwindow* window) {
     //CAMERA_wasd(camera, window, deltaTime);
 }
-
-typedef struct {
-    vec3 position;
-    vec3 scale;
-    vec3 rotation;
-    vec4 color;
-} Cube;
-
-typedef struct {
-    vec3 position;
-    vec3 color;
-    float ambient;
-    float diffuse;
-    float specular;
-} Light;
-
 float lerp(float a, float b, float f) {
     return a + f * (b - a);
 }
@@ -62,35 +49,94 @@ void CAMERA_loadFromFile(Camera* camera, const char* filename) {
     fclose(file);
 }
 
+void renderScene(unsigned int shaderProgram, unsigned int cubeVAO, Cube* cubes, int numCubes) {
+    glBindVertexArray(cubeVAO);
+    for(int i = 0; i < numCubes; i++) {
+        mat4 model;
+        glm_mat4_identity(model);
+        glm_translate(model, cubes[i].position);
+        glm_rotate_y(model, cubes[i].rotation[1], model);
+        glm_scale(model, cubes[i].scale);
+        glUniformMatrix4fv(glGetUniformLocation(shaderProgram, "model"), 1, GL_FALSE, (float*)model);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+}
+
 int main() {
     camera = malloc(sizeof(Camera));
     CAMERA_init(camera);
     srand(time(NULL));
+    
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-
-    GLFWwindow* window = glfwCreateWindow(screenX, screenY, "Forward + SSAO", NULL, NULL);
-    if(! window){ printf("Failed\n"); glfwTerminate(); return -1; }
+    glfwWindowHint(GLFW_SAMPLES, 4);
+    GLFWwindow* window = glfwCreateWindow(screenX, screenY, "Cglib viewport", NULL, NULL);
+    if(!window) { 
+        printf("Failed to create window\n"); 
+        glfwTerminate(); 
+        return -1; 
+    }
     glfwMakeContextCurrent(window);
-    if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)){ printf("Failed GLAD\n"); return -1; }
-
+    
+    if(!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress)) { 
+        printf("Failed GLAD\n"); 
+        return -1; 
+    }
+    glEnable(GL_MULTISAMPLE);
     glViewport(0, 0, screenX, screenY);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
-    //glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
     glEnable(GL_DEPTH_TEST);
+
+    // Compile shaders
     unsigned int forwardShaderProgram = compileShaderProgram(forwardVertexShaderSource, forwardFragmentShaderSource);
     unsigned int depthShaderProgram = compileShaderProgram(depthVertexShaderSource, depthFragmentShaderSource);
-    unsigned int ssaoShaderProgram  = compileShaderProgram(ssaoVertexShaderSource, ssaoFragmentShaderSource);
-    unsigned int blurShaderProgram  = compileShaderProgram(ssaoVertexShaderSource, blurFragmentShaderSource);
+    unsigned int ssaoShaderProgram = compileShaderProgram(ssaoVertexShaderSource, ssaoFragmentShaderSource);
+    unsigned int blurShaderProgram = compileShaderProgram(ssaoVertexShaderSource, blurFragmentShaderSource);
     unsigned int compositeShaderProgram = compileShaderProgram(ssaoVertexShaderSource, compositeFragmentShaderSource);
+    unsigned int shadowShaderProgram = compileShaderProgramWithGeometry(
+        shadowDepthVertexShaderSource, 
+        shadowDepthFragmentShaderSource,
+        shadowDepthGeometryShaderSource
+    );
+
+    // Create shadow map framebuffers and cubemaps
+    unsigned int depthMapFBO[3];
+    unsigned int depthCubemaps[3];
+    
+    for(int i = 0; i < 3; i++) {
+        glGenFramebuffers(1, &depthMapFBO[i]);
+        glGenTextures(1, &depthCubemaps[i]);
+        glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemaps[i]);
+        
+        for(unsigned int j = 0; j < 6; ++j) {
+            glTexImage2D(GL_TEXTURE_CUBE_MAP_POSITIVE_X + j, 0, GL_DEPTH_COMPONENT,
+                        SHADOW_WIDTH, SHADOW_HEIGHT, 0, GL_DEPTH_COMPONENT, GL_FLOAT, NULL);
+        }
+        
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_CUBE_MAP, GL_TEXTURE_WRAP_R, GL_CLAMP_TO_EDGE);
+        
+        glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO[i]);
+        glFramebufferTexture(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, depthCubemaps[i], 0);
+        glDrawBuffer(GL_NONE);
+        glReadBuffer(GL_NONE);
+        
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            printf("Shadow FBO %d not complete!\n", i);
+            
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    }
 
     // Create depth FBO for SSAO
-    unsigned int depthFBO;
-    glGenFramebuffers(1, &depthFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, depthFBO);
+    unsigned int ssaoDepthFBO;
+    glGenFramebuffers(1, &ssaoDepthFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, ssaoDepthFBO);
 
     unsigned int gPosition, gNormal;
     glGenTextures(1, &gPosition);
@@ -117,7 +163,7 @@ int main() {
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, rboDepth);
 
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        printf("Depth FBO not complete!\n");
+        printf("SSAO Depth FBO not complete!\n");
 
     // Create scene color FBO
     unsigned int sceneFBO;
@@ -223,10 +269,10 @@ int main() {
 
     // Create scene
     Cube cubes[10];
-    cubes[0] = (Cube){ . position = {0.0f, -1.5f, 0.0f}, .scale = {20.0f, 0.2f, 20.0f}, .rotation = {0,0,0}, .color = {0.7f, 0.7f, 0.7f, 1.0f} };
+    cubes[0] = (Cube){ .position = {0.0f, -1.5f, 0.0f}, .scale = {20.0f, 0.2f, 20.0f}, .rotation = {0,0,0}, .color = {0.7f, 0.7f, 0.7f, 1.0f} };
     cubes[1] = (Cube){ .position = {0.0f, 3.0f, -5.0f}, .scale = {15.0f, 6.0f, 0.2f}, .rotation = {0,0,0}, .color = {0.6f, 0.6f, 0.6f, 1.0f} };
     for(int i = 2; i < 7; i++) {
-        cubes[i]. position[0] = -3.0f + (i-2)*1.5f;
+        cubes[i].position[0] = -3.0f + (i-2)*1.5f;
         cubes[i].position[1] = -1.3f + (i-2)*1.2f;
         cubes[i].position[2] = -1.0f;
         cubes[i].scale[0] = 1.0f; cubes[i].scale[1] = 1.0f; cubes[i].scale[2] = 1.0f;
@@ -240,7 +286,7 @@ int main() {
     Light lights[3];
     lights[0] = (Light){ .position = {3.0f, 3.0f, 3.0f}, .color = {0.9f, 0.9f, 0.9f}, .ambient = 0.15f, .diffuse = 0.8f, .specular = 1.0f };
     lights[1] = (Light){ .position = {-3.0f, 2.0f, -2.0f}, .color = {0.7f, 0.7f, 0.7f}, .ambient = 0.1f, .diffuse = 0.6f, .specular = 0.5f };
-    lights[2] = (Light){ .position = {0.0f, 4.0f, 0.0f}, .color = {0.6f, 0.6f, 0.6f}, .ambient = 0.1f, . diffuse = 0.5f, .specular = 0.3f };
+    lights[2] = (Light){ .position = {0.0f, 4.0f, 0.0f}, .color = {0.6f, 0.6f, 0.6f}, .ambient = 0.1f, .diffuse = 0.5f, .specular = 0.3f };
 
     // Send SSAO samples to shader
     glUseProgram(ssaoShaderProgram);
@@ -253,33 +299,97 @@ int main() {
     glUniform1i(glGetUniformLocation(ssaoShaderProgram, "gNormal"), 1);
     glUniform1i(glGetUniformLocation(ssaoShaderProgram, "texNoise"), 2);
 
-    while(!glfwWindowShouldClose(window)){
-        CAMERA_loadFromFile(camera,"camera.txt");
+    float farPlane = 25.0f;
+
+    // Main render loop
+    while(!glfwWindowShouldClose(window)) {
+        CAMERA_loadFromFile(camera, "camera.txt");
         float currentFrame = glfwGetTime();
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
         processInput(window);
 
+        // Animate first light
         lights[0].position[0] = sin(currentFrame * 0.7f) * 4.0f;
         lights[0].position[2] = cos(currentFrame * 0.7f) * 4.0f;
 
         mat4 view, projection;
-        vec3 target = {camera->cameraPos[0]+camera->cameraFront[0], camera->cameraPos[1]+camera->cameraFront[1], camera->cameraPos[2]+camera->cameraFront[2]};
+        vec3 target = {
+            camera->cameraPos[0] + camera->cameraFront[0], 
+            camera->cameraPos[1] + camera->cameraFront[1], 
+            camera->cameraPos[2] + camera->cameraFront[2]
+        };
         glm_lookat(camera->cameraPos, target, camera->cameraUp, view);
         glm_perspective(glm_rad(45.0f), (float)screenX/(float)screenY, 0.1f, 100.0f, projection);
 
-        // 1. Forward rendering pass
+        for(int lightIdx = 0; lightIdx < 3; lightIdx++) {
+            glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
+            glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO[lightIdx]);
+            glClear(GL_DEPTH_BUFFER_BIT);
+            
+            mat4 shadowProj;
+            glm_perspective(glm_rad(90.0f), 1.0f, 1.0f, farPlane, shadowProj);
+            
+            vec3 targets[6] = {
+                {1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f},
+                {0.0f, 1.0f, 0.0f}, {0.0f, -1.0f, 0.0f},
+                {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -1.0f}
+            };
+            vec3 ups[6] = {
+                {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f},
+                {0.0f, 0.0f, 1.0f}, {0.0f, 0.0f, -1.0f},
+                {0.0f, -1.0f, 0.0f}, {0.0f, -1.0f, 0.0f}
+            };
+            
+            mat4 shadowTransforms[6];
+            for(int i = 0; i < 6; i++) {
+                mat4 shadowView;
+                vec3 target;
+                glm_vec3_add(lights[lightIdx].position, targets[i], target);
+                glm_lookat(lights[lightIdx].position, target, ups[i], shadowView);
+                glm_mat4_mul(shadowProj, shadowView, shadowTransforms[i]);
+            }
+            
+            // Render scene from light's perspective
+            glUseProgram(shadowShaderProgram);
+            for(int i = 0; i < 6; i++) {
+                char name[32];
+                sprintf(name, "shadowMatrices[%d]", i);
+                glUniformMatrix4fv(glGetUniformLocation(shadowShaderProgram, name), 1, GL_FALSE, (float*)shadowTransforms[i]);
+            }
+            glUniform3fv(glGetUniformLocation(shadowShaderProgram, "lightPos"), 1, lights[lightIdx].position);
+            glUniform1f(glGetUniformLocation(shadowShaderProgram, "farPlane"), farPlane);
+            
+            renderScene(shadowShaderProgram, cubeVAO, cubes, 10);
+        }
+        
+        // Reset viewport
+        glViewport(0, 0, screenX, screenY);
+
+        // 1. Forward rendering pass with shadows
         glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(forwardShaderProgram);
-        glBindVertexArray(cubeVAO);
+        
         glUniformMatrix4fv(glGetUniformLocation(forwardShaderProgram, "view"), 1, GL_FALSE, (float*)view);
         glUniformMatrix4fv(glGetUniformLocation(forwardShaderProgram, "projection"), 1, GL_FALSE, (float*)projection);
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "numLights"), 3);
+        glUniform1f(glGetUniformLocation(forwardShaderProgram, "farPlane"), farPlane);
+        glUniform1i(glGetUniformLocation(forwardShaderProgram, "shadowMapCount"), 3);
 
-        for(int i=0; i<3; i++){
+        // Bind shadow cubemaps
+        for(int i = 0; i < 3; i++) {
+            char name[32];
+            sprintf(name, "shadowMaps[%d]", i);
+            glUniform1i(glGetUniformLocation(forwardShaderProgram, name), 3 + i);
+            glActiveTexture(GL_TEXTURE3 + i);
+            glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemaps[i]);
+        }
+
+        // Send light data
+        for(int i = 0; i < 3; i++) {
             char name[50];
             sprintf(name, "lights[%d].position", i);
             glUniform3fv(glGetUniformLocation(forwardShaderProgram, name), 1, lights[i].position);
@@ -293,32 +403,26 @@ int main() {
             glUniform1f(glGetUniformLocation(forwardShaderProgram, name), lights[i].specular);
         }
 
-        for(int i=0; i<10; i++){
-            mat4 model;
-            glm_mat4_identity(model);
-            glm_translate(model, cubes[i]. position);
-            glm_rotate_y(model, cubes[i].rotation[1], model);
-            glm_scale(model, cubes[i]. scale);
-            glUniformMatrix4fv(glGetUniformLocation(forwardShaderProgram, "model"), 1, GL_FALSE, (float*)model);
-            glUniform4fv(glGetUniformLocation(forwardShaderProgram, "objectColor"), 1, cubes[i]. color);
-            glDrawArrays(GL_TRIANGLES, 0, 36);
-        }
-        // 2. Depth pass for SSAO
-        glBindFramebuffer(GL_FRAMEBUFFER, depthFBO);
-        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(depthShaderProgram);
-        glUniformMatrix4fv(glGetUniformLocation(depthShaderProgram, "view"), 1, GL_FALSE, (float*)view);
-        glUniformMatrix4fv(glGetUniformLocation(depthShaderProgram, "projection"), 1, GL_FALSE, (float*)projection);
-
-        for(int i=0; i<10; i++){
+        // Render scene with lighting and shadows
+        for(int i = 0; i < 10; i++) {
             mat4 model;
             glm_mat4_identity(model);
             glm_translate(model, cubes[i].position);
             glm_rotate_y(model, cubes[i].rotation[1], model);
             glm_scale(model, cubes[i].scale);
-            glUniformMatrix4fv(glGetUniformLocation(depthShaderProgram, "model"), 1, GL_FALSE, (float*)model);
+            glUniformMatrix4fv(glGetUniformLocation(forwardShaderProgram, "model"), 1, GL_FALSE, (float*)model);
+            glUniform4fv(glGetUniformLocation(forwardShaderProgram, "objectColor"), 1, cubes[i].color);
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
+
+        // 2. Depth pass for SSAO
+        glBindFramebuffer(GL_FRAMEBUFFER, ssaoDepthFBO);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+        glUseProgram(depthShaderProgram);
+        glUniformMatrix4fv(glGetUniformLocation(depthShaderProgram, "view"), 1, GL_FALSE, (float*)view);
+        glUniformMatrix4fv(glGetUniformLocation(depthShaderProgram, "projection"), 1, GL_FALSE, (float*)projection);
+
+        renderScene(depthShaderProgram, cubeVAO, cubes, 10);
 
         // 3. SSAO Pass
         glBindFramebuffer(GL_FRAMEBUFFER, ssaoFBO);
@@ -360,20 +464,23 @@ int main() {
         glfwPollEvents();
     }
 
+    // Cleanup
     glDeleteVertexArrays(1, &cubeVAO);
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteBuffers(1, &cubeVBO);
     glDeleteBuffers(1, &quadVBO);
-    glDeleteFramebuffers(1, &depthFBO);
+    glDeleteFramebuffers(1, &ssaoDepthFBO);
     glDeleteFramebuffers(1, &sceneFBO);
     glDeleteFramebuffers(1, &ssaoFBO);
     glDeleteFramebuffers(1, &ssaoBlurFBO);
+    glDeleteFramebuffers(3, depthMapFBO);
     glDeleteTextures(1, &gPosition);
     glDeleteTextures(1, &gNormal);
     glDeleteTextures(1, &sceneColorBuffer);
     glDeleteTextures(1, &ssaoColorBuffer);
     glDeleteTextures(1, &ssaoColorBufferBlur);
     glDeleteTextures(1, &noiseTexture);
+    glDeleteTextures(3, depthCubemaps);
     glDeleteRenderbuffers(1, &rboDepth);
     glDeleteRenderbuffers(1, &sceneRboDepth);
     glDeleteProgram(forwardShaderProgram);
@@ -381,6 +488,9 @@ int main() {
     glDeleteProgram(ssaoShaderProgram);
     glDeleteProgram(blurShaderProgram);
     glDeleteProgram(compositeShaderProgram);
+    glDeleteProgram(shadowShaderProgram);
+    
+    free(camera);
     glfwTerminate();
     return 0;
 }
