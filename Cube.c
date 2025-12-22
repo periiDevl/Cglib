@@ -41,7 +41,7 @@ void CUBE_drawArray(CubeObject obj[], int size)
         glRotatef(obj[i].rotY * 180.0f / 3.14159265359f, 0, 1, 0);
         glRotatef(obj[i].rotZ * 180.0f / 3.14159265359f, 0, 0, 1);
         
-        glScalef(obj[i].sx, obj[i].sy, obj[i].sz);
+        glScalef(obj[i].sx/2, obj[i].sy/2, obj[i].sz/2);
         
         glColor3f(obj[i].r, obj[i].g, obj[i].b);
         CUBE_draw();

@@ -21,14 +21,21 @@
 #include "Gizmo.h"
 
 CubeObject objects[] = {
-    {0, 0, 0, 0.7, 0.7, 0.7, 3, 3, 3, 0, 0, 0},
-    {2, 3, 4, 0.15, 0.5, 0.2, 2, 2, 4, 0, 0, 0},
-    {-3, -3, -3, 0.15, 0.5, 0.2, 30, 1, 30, 0, 0, 0},
+    {0.0f, -1.5f, 0.0f, 0.7f, 0.7f, 0.7f, 20.0f, 0.2f, 20.0f, 0.0f, 0.0f, 0.0f},
+    {0.0f, 3.0f, -5.0f, 0.6f, 0.6f, 0.6f, 15.0f, 6.0f, 0.2f, 0.0f, 0.0f, 0.0f},
+    {-3.0f, -1.3f, -1.0f, 0.8f, 0.8f, 0.8f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f},
+    {-1.5f, -0.1f, -1.0f, 0.8f, 0.8f, 0.8f, 1.0f, 1.0f, 1.0f, 0.0f, 0.3f, 0.0f},
+    {0.0f, 1.1f, -1.0f, 0.8f, 0.8f, 0.8f, 1.0f, 1.0f, 1.0f, 0.0f, 0.6f, 0.0f},
+    {1.5f, 2.3f, -1.0f, 0.8f, 0.8f, 0.8f, 1.0f, 1.0f, 1.0f, 0.0f, 0.9f, 0.0f},
+    {3.0f, 3.5f, -1.0f, 0.8f, 0.8f, 0.8f, 1.0f, 1.0f, 1.0f, 0.0f, 1.2f, 0.0f},
+    {3.0f, -0.5f, 1.0f, 0.75f, 0.75f, 0.75f, 1.5f, 1.5f, 1.5f, 0.0f, 0.0f, 0.0f},
+    {-3.5f, 1.0f, 2.0f, 0.75f, 0.75f, 0.75f, 1.2f, 1.2f, 1.2f, 0.0f, 0.5f, 0.0f},
+    {1.0f, 2.0f, -2.0f, 0.7f, 0.7f, 0.7f, 0.8f, 0.8f, 0.8f, 0.0f, 0.0f, 0.0f}
 };
 
 LightSource lights[] = {
-    {6, 6, 6, 2.7f, 2.7f, 2.7f, 0, 0},
-    {0, 0, 0, 3.0f, 3.0f, 3.0f, 0.01f, 0.005f},
+    {6, 6, 6, 1.0f, 1.0f, 1.0f, 0, 0},
+    {0, 0, 0, 1.0f, 1.0f, 1.0f, 0.01f, 0.005f},
 };
 
 Camera* camera;
@@ -113,7 +120,20 @@ void handle_gizmo_interaction(GLFWwindow* window) {
     
     wasLeftPressed = isLeftPressed;
 }
-
+void CAMERA_saveToFile(Camera* camera, const char* filename) {
+    if (!camera) return;
+    FILE* file = fopen(filename, "w");
+    if (!file) {
+        perror("Failed to open file for writing");
+        return;
+    }
+    fprintf(file, "%f %f %f\n", camera->camX, camera->camY, camera->camZ);
+    fprintf(file, "%f %f %f\n", camera->camForwardX, camera->camForwardY, camera->camForwardZ);
+    fprintf(file, "%f %f\n", camera->yaw, camera->pitch);
+    fprintf(file, "%f\n", camera->speed);
+    fprintf(file, "%f\n", camera->fov);
+    fclose(file);
+};
 int main() {
     camera = malloc(sizeof(Camera));
     CAMERA_init(camera);
@@ -150,7 +170,7 @@ int main() {
 
     while (!glfwWindowShouldClose(window)) {
         glfwPollEvents();
-        
+        CAMERA_saveToFile(camera, "ModernGL/camera.txt");
         // Handle custom input ONLY when UI doesn't have focus
         handle_custom_input(window);
         
