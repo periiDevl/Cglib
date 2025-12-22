@@ -89,6 +89,8 @@ int main() {
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
     glfwSetCursorPosCallback(window, mouse_callback);
     glEnable(GL_DEPTH_TEST);
+    printf("OpenGL: %s\n", glGetString(GL_VERSION));
+    printf("GLSL: %s\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
 
     // Compile shaders
     unsigned int forwardShaderProgram = compileShaderProgram(forwardVertexShaderSource, forwardFragmentShaderSource);
