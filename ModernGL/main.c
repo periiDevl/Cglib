@@ -322,8 +322,8 @@ int main() {
         .scale = {20.0f, 0.2f, 20.0f}, 
         .rotation = {0,0,0}, 
         .color = {0.7f, 0.7f, 0.7f, 1.0f},
-        .shininess = 10.0f,
-        .diffuseStrength = 1.8f,
+        .shininess = 50.0f,
+        .diffuseStrength = 1.1f,
         .specularStrength = 0.5f,
         .ambientStrength = 0.2f
     };
@@ -334,8 +334,8 @@ int main() {
         .scale = {15.0f, 6.0f, 0.2f}, 
         .rotation = {0,0,0}, 
         .color = {1.0f, 1.0f, 1.0f, 1.0f},
-        .shininess = 0.4f,
-        .diffuseStrength = 0.8f,
+        .shininess = 50.0f,
+        .diffuseStrength = 1.1f,
         .specularStrength = 0.5f,
         .ambientStrength = 0.2f
     };
