@@ -5,4 +5,9 @@ typedef struct {
     vec3 scale;
     vec3 rotation;
     vec4 color;
+
+    float ambientStrength;
+    float diffuseStrength;
+    float specularStrength;
+    float shininess;
 } Cube;

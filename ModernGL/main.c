@@ -11,6 +11,7 @@
 #include "Camera.h"
 #include"Cube.h"
 #include"Lighting.h"
+
 const int screenX = 1280;
 const int screenY = 720;
 const unsigned int SHADOW_WIDTH = 1024;
@@ -31,6 +32,7 @@ void mouse_callback(GLFWwindow* window, double xpos, double ypos) {
 void processInput(GLFWwindow* window) {
     //CAMERA_wasd(camera, window, deltaTime);
 }
+
 float lerp(float a, float b, float f) {
     return a + f * (b - a);
 }
@@ -97,12 +99,16 @@ int main() {
     unsigned int depthShaderProgram = compileShaderProgram(depthVertexShaderSource, depthFragmentShaderSource);
     unsigned int ssaoShaderProgram = compileShaderProgram(ssaoVertexShaderSource, ssaoFragmentShaderSource);
     unsigned int blurShaderProgram = compileShaderProgram(ssaoVertexShaderSource, blurFragmentShaderSource);
-    unsigned int compositeShaderProgram = compileShaderProgram(ssaoVertexShaderSource, compositeFragmentShaderSource);
     unsigned int shadowShaderProgram = compileShaderProgramWithGeometry(
         shadowDepthVertexShaderSource, 
         shadowDepthFragmentShaderSource,
         shadowDepthGeometryShaderSource
     );
+    
+    // Post-processing shaders
+    unsigned int brightnessShaderProgram = compileShaderProgram(brightnessVertexShaderSource, brightnessFragmentShaderSource);
+    unsigned int gaussianBlurShaderProgram = compileShaderProgram(brightnessVertexShaderSource, gaussianBlurFragmentShaderSource);
+    unsigned int postProcShaderProgram = compileShaderProgram(brightnessVertexShaderSource, postProcFragmentShaderSource);
 
     // Create shadow map framebuffers and cubemaps
     unsigned int depthMapFBO[3];
@@ -135,7 +141,67 @@ int main() {
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
     }
 
-    // Create depth FBO for SSAO
+    // ============ POST-PROCESSING FRAMEBUFFER SETUP ============
+    
+    // Main HDR rendering target (MSAA)
+    unsigned int hdrMsaaFBO;
+    glGenFramebuffers(1, &hdrMsaaFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, hdrMsaaFBO);
+
+    unsigned int hdrMsaaColorBuffer;
+    glGenTextures(1, &hdrMsaaColorBuffer);
+    glBindTexture(GL_TEXTURE_2D_MULTISAMPLE, hdrMsaaColorBuffer);
+    glTexImage2DMultisample(GL_TEXTURE_2D_MULTISAMPLE, 4, GL_RGBA16F, screenX, screenY, GL_TRUE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D_MULTISAMPLE, hdrMsaaColorBuffer, 0);
+
+    unsigned int hdrMsaaRboDepth;
+    glGenRenderbuffers(1, &hdrMsaaRboDepth);
+    glBindRenderbuffer(GL_RENDERBUFFER, hdrMsaaRboDepth);
+    glRenderbufferStorageMultisample(GL_RENDERBUFFER, 4, GL_DEPTH_COMPONENT, screenX, screenY);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, hdrMsaaRboDepth);
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        printf("HDR MSAA FBO not complete!\n");
+
+    // Post-processing FBO (resolved, non-MSAA HDR buffer)
+    unsigned int postProcFBO;
+    glGenFramebuffers(1, &postProcFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, postProcFBO);
+
+    unsigned int postProcColorBuffer;
+    glGenTextures(1, &postProcColorBuffer);
+    glBindTexture(GL_TEXTURE_2D, postProcColorBuffer);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, screenX, screenY, 0, GL_RGBA, GL_FLOAT, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, postProcColorBuffer, 0);
+
+    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        printf("Post-processing FBO not complete!\n");
+
+    // Bloom extraction and blur FBOs (part of post-processing pipeline)
+    unsigned int bloomFBO[2];
+    unsigned int bloomColorBuffers[2];
+    glGenFramebuffers(2, bloomFBO);
+    glGenTextures(2, bloomColorBuffers);
+
+    for(int i = 0; i < 2; i++) {
+        glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO[i]);
+        glBindTexture(GL_TEXTURE_2D, bloomColorBuffers[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA16F, screenX, screenY, 0, GL_RGBA, GL_FLOAT, NULL);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, bloomColorBuffers[i], 0);
+        
+        if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+            printf("Bloom FBO %d not complete!\n", i);
+    }
+
+    // SSAO geometry buffer (for depth/normals)
     unsigned int ssaoDepthFBO;
     glGenFramebuffers(1, &ssaoDepthFBO);
     glBindFramebuffer(GL_FRAMEBUFFER, ssaoDepthFBO);
@@ -167,29 +233,7 @@ int main() {
     if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
         printf("SSAO Depth FBO not complete!\n");
 
-    // Create scene color FBO
-    unsigned int sceneFBO;
-    glGenFramebuffers(1, &sceneFBO);
-    glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
-
-    unsigned int sceneColorBuffer;
-    glGenTextures(1, &sceneColorBuffer);
-    glBindTexture(GL_TEXTURE_2D, sceneColorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, screenX, screenY, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, sceneColorBuffer, 0);
-
-    unsigned int sceneRboDepth;
-    glGenRenderbuffers(1, &sceneRboDepth);
-    glBindRenderbuffer(GL_RENDERBUFFER, sceneRboDepth);
-    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH_COMPONENT, screenX, screenY);
-    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, sceneRboDepth);
-
-    if(glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
-        printf("Scene FBO not complete!\n");
-
-    // Create SSAO FBOs
+    // SSAO computation and blur FBOs
     unsigned int ssaoFBO, ssaoBlurFBO;
     glGenFramebuffers(1, &ssaoFBO);
     glGenFramebuffers(1, &ssaoBlurFBO);
@@ -198,7 +242,7 @@ int main() {
     unsigned int ssaoColorBuffer;
     glGenTextures(1, &ssaoColorBuffer);
     glBindTexture(GL_TEXTURE_2D, ssaoColorBuffer);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenX, screenY, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, screenX, screenY, 0, GL_RED, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoColorBuffer, 0);
@@ -207,7 +251,7 @@ int main() {
     unsigned int ssaoColorBufferBlur;
     glGenTextures(1, &ssaoColorBufferBlur);
     glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
-    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, screenX, screenY, 0, GL_RGB, GL_FLOAT, NULL);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RED, screenX, screenY, 0, GL_RED, GL_FLOAT, NULL);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
     glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, ssaoColorBufferBlur, 0);
@@ -269,24 +313,83 @@ int main() {
     glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4*sizeof(float), (void*)(2*sizeof(float)));
     glEnableVertexAttribArray(1);
 
-    // Create scene
+    // Create scene with full material properties
     Cube cubes[10];
-    cubes[0] = (Cube){ .position = {0.0f, -1.5f, 0.0f}, .scale = {20.0f, 0.2f, 20.0f}, .rotation = {0,0,0}, .color = {0.7f, 0.7f, 0.7f, 1.0f} };
-    cubes[1] = (Cube){ .position = {0.0f, 3.0f, -5.0f}, .scale = {15.0f, 6.0f, 0.2f}, .rotation = {0,0,0}, .color = {0.6f, 0.6f, 0.6f, 1.0f} };
+
+    // Floor
+    cubes[0] = (Cube){ 
+        .position = {0.0f, -1.5f, 0.0f}, 
+        .scale = {20.0f, 0.2f, 20.0f}, 
+        .rotation = {0,0,0}, 
+        .color = {0.7f, 0.7f, 0.7f, 1.0f},
+        .shininess = 10.0f,
+        .diffuseStrength = 1.8f,
+        .specularStrength = 0.5f,
+        .ambientStrength = 0.2f
+    };
+
+    // Wall
+    cubes[1] = (Cube){ 
+        .position = {0.0f, 3.0f, -5.0f}, 
+        .scale = {15.0f, 6.0f, 0.2f}, 
+        .rotation = {0,0,0}, 
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .shininess = 0.4f,
+        .diffuseStrength = 0.8f,
+        .specularStrength = 0.5f,
+        .ambientStrength = 0.2f
+    };
+
+    // Small cubes in a row
     for(int i = 2; i < 7; i++) {
         cubes[i].position[0] = -3.0f + (i-2)*1.5f;
         cubes[i].position[1] = -1.3f + (i-2)*1.2f;
         cubes[i].position[2] = -1.0f;
         cubes[i].scale[0] = 1.0f; cubes[i].scale[1] = 1.0f; cubes[i].scale[2] = 1.0f;
         cubes[i].rotation[0] = 0; cubes[i].rotation[1] = (i-2)*0.3f; cubes[i].rotation[2] = 0;
-        cubes[i].color[0] = 0.8f; cubes[i].color[1] = 0.8f; cubes[i].color[2] = 0.8f; cubes[i].color[3] = 1.0f;
+        cubes[i].color[0] = 1.0f; cubes[i].color[1] = 1.0f; cubes[i].color[2] = 1.0f; cubes[i].color[3] = 1.0f;
+        cubes[i].shininess = 0.5f;
+        cubes[i].diffuseStrength = 0.8f;
+        cubes[i].specularStrength = 0.5f;
+        cubes[i].ambientStrength = 0.2f;
     }
-    cubes[7] = (Cube){ .position = {3.0f, -0.5f, 1.0f}, .scale = {1.5f, 1.5f, 1.5f}, .rotation = {0,0,0}, .color = {0.75f, 0.75f, 0.75f, 1.0f} };
-    cubes[8] = (Cube){ .position = {-3.5f, 1.0f, 2.0f}, .scale = {1.2f, 1.2f, 1.2f}, .rotation = {0,0.5f,0}, .color = {0.75f, 0.75f, 0.75f, 1.0f} };
-    cubes[9] = (Cube){ .position = {1.0f, 2.0f, -2.0f}, .scale = {0.8f, 0.8f, 0.8f}, .rotation = {0,0,0}, .color = {0.7f, 0.7f, 0.7f, 1.0f} };
+
+    // Extra cubes
+    cubes[7] = (Cube){ 
+        .position = {3.0f, -0.5f, 1.0f}, 
+        .scale = {1.5f, 1.5f, 1.5f}, 
+        .rotation = {0,0,0}, 
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .shininess = 0.5f,
+        .diffuseStrength = 0.8f,
+        .specularStrength = 0.4f,
+        .ambientStrength = 0.2f
+    };
+
+    cubes[8] = (Cube){ 
+        .position = {-3.5f, 1.0f, 2.0f}, 
+        .scale = {1.2f, 1.2f, 1.2f}, 
+        .rotation = {0,0.5f,0}, 
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .shininess = 0.5f,
+        .diffuseStrength = 0.8f,
+        .specularStrength = 1.4f,
+        .ambientStrength = 0.2f
+    };
+
+    cubes[9] = (Cube){ 
+        .position = {1.0f, 2.0f, -2.0f}, 
+        .scale = {0.8f, 0.8f, 0.8f}, 
+        .rotation = {0,0,0}, 
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .shininess = 50.0f,
+        .diffuseStrength = 0.8f,
+        .specularStrength = 1.4f,
+        .ambientStrength = 0.2f
+    };
 
     Light lights[3];
-    lights[0] = (Light){ .position = {3.0f, 3.0f, 3.0f}, .color = {0.9f, 0.9f, 0.9f}, .ambient = 0.15f, .diffuse = 0.8f, .specular = 1.0f };
+    lights[0] = (Light){ .position = {3.0f, 3.0f, 3.0f}, .color = {0.9f, 0.9f, 0.9f}, .ambient = 0.1f, .diffuse = 0.8f, .specular = 1.0f };
     lights[1] = (Light){ .position = {-3.0f, 2.0f, -2.0f}, .color = {0.7f, 0.7f, 0.7f}, .ambient = 0.1f, .diffuse = 0.6f, .specular = 0.5f };
     lights[2] = (Light){ .position = {0.0f, 4.0f, 0.0f}, .color = {0.6f, 0.6f, 0.6f}, .ambient = 0.1f, .diffuse = 0.5f, .specular = 0.3f };
 
@@ -302,6 +405,14 @@ int main() {
     glUniform1i(glGetUniformLocation(ssaoShaderProgram, "texNoise"), 2);
 
     float farPlane = 25.0f;
+    
+    // Post-processing parameters
+    float exposure = 0.8f;
+    float bloomThreshold = 0.9f;
+    float bloomStrength = 0.2f;
+    int blurAmount = 30;
+    bool useBloom = true;
+    bool useSSAO = true;
 
     // Main render loop
     while(!glfwWindowShouldClose(window)) {
@@ -325,6 +436,7 @@ int main() {
         glm_lookat(camera->cameraPos, target, camera->cameraUp, view);
         glm_perspective(glm_rad(45.0f), (float)screenX/(float)screenY, 0.1f, 100.0f, projection);
 
+        // ============ SHADOW PASS ============
         for(int lightIdx = 0; lightIdx < 3; lightIdx++) {
             glViewport(0, 0, SHADOW_WIDTH, SHADOW_HEIGHT);
             glBindFramebuffer(GL_FRAMEBUFFER, depthMapFBO[lightIdx]);
@@ -353,7 +465,6 @@ int main() {
                 glm_mat4_mul(shadowProj, shadowView, shadowTransforms[i]);
             }
             
-            // Render scene from light's perspective
             glUseProgram(shadowShaderProgram);
             for(int i = 0; i < 6; i++) {
                 char name[32];
@@ -366,11 +477,10 @@ int main() {
             renderScene(shadowShaderProgram, cubeVAO, cubes, 10);
         }
         
-        // Reset viewport
         glViewport(0, 0, screenX, screenY);
 
-        // 1. Forward rendering pass with shadows
-        glBindFramebuffer(GL_FRAMEBUFFER, sceneFBO);
+        // ============ FORWARD RENDERING PASS (to HDR MSAA buffer) ============
+        glBindFramebuffer(GL_FRAMEBUFFER, hdrMsaaFBO);
         glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(forwardShaderProgram);
@@ -380,8 +490,7 @@ int main() {
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "numLights"), 3);
         glUniform1f(glGetUniformLocation(forwardShaderProgram, "farPlane"), farPlane);
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "shadowMapCount"), 3);
-
-        // Bind shadow cubemaps
+        glUniform1f(glGetUniformLocation(forwardShaderProgram, "shadowDarkness"), 1.0f);
         for(int i = 0; i < 3; i++) {
             char name[32];
             sprintf(name, "shadowMaps[%d]", i);
@@ -390,7 +499,6 @@ int main() {
             glBindTexture(GL_TEXTURE_CUBE_MAP, depthCubemaps[i]);
         }
 
-        // Send light data
         for(int i = 0; i < 3; i++) {
             char name[50];
             sprintf(name, "lights[%d].position", i);
@@ -405,7 +513,7 @@ int main() {
             glUniform1f(glGetUniformLocation(forwardShaderProgram, name), lights[i].specular);
         }
 
-        // Render scene with lighting and shadows
+        glBindVertexArray(cubeVAO);
         for(int i = 0; i < 10; i++) {
             mat4 model;
             glm_mat4_identity(model);
@@ -414,19 +522,53 @@ int main() {
             glm_scale(model, cubes[i].scale);
             glUniformMatrix4fv(glGetUniformLocation(forwardShaderProgram, "model"), 1, GL_FALSE, (float*)model);
             glUniform4fv(glGetUniformLocation(forwardShaderProgram, "objectColor"), 1, cubes[i].color);
+            glUniform4fv(glGetUniformLocation(forwardShaderProgram, "material.color"), 1, cubes[i].color);
+            glUniform1f(glGetUniformLocation(forwardShaderProgram, "material.ambient"), cubes[i].ambientStrength);
+            glUniform1f(glGetUniformLocation(forwardShaderProgram, "material.diffuse"), cubes[i].diffuseStrength);
+            glUniform1f(glGetUniformLocation(forwardShaderProgram, "material.specular"), cubes[i].specularStrength);
+            glUniform1f(glGetUniformLocation(forwardShaderProgram, "material.shininess"), cubes[i].shininess);
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
 
-        // 2. Depth pass for SSAO
+        // ============ RESOLVE MSAA TO POST-PROCESSING BUFFER ============
+        glBindFramebuffer(GL_READ_FRAMEBUFFER, hdrMsaaFBO);
+        glBindFramebuffer(GL_DRAW_FRAMEBUFFER, postProcFBO);
+        glBlitFramebuffer(0, 0, screenX, screenY, 0, 0, screenX, screenY, 
+                          GL_COLOR_BUFFER_BIT, GL_NEAREST);
+
+        // ============ BLOOM: EXTRACT BRIGHT AREAS ============
+        glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO[0]);
+        glClear(GL_COLOR_BUFFER_BIT);
+        glUseProgram(brightnessShaderProgram);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, postProcColorBuffer);
+        glUniform1i(glGetUniformLocation(brightnessShaderProgram, "hdrBuffer"), 0);
+        glUniform1f(glGetUniformLocation(brightnessShaderProgram, "threshold"), bloomThreshold);
+        glBindVertexArray(quadVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // ============ BLOOM: GAUSSIAN BLUR (PING-PONG) ============
+        bool horizontal = true;
+        glUseProgram(gaussianBlurShaderProgram);
+        for(int i = 0; i < blurAmount; i++) {
+            glBindFramebuffer(GL_FRAMEBUFFER, bloomFBO[horizontal]);
+            glUniform1i(glGetUniformLocation(gaussianBlurShaderProgram, "horizontal"), horizontal);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, bloomColorBuffers[!horizontal]);
+            glUniform1i(glGetUniformLocation(gaussianBlurShaderProgram, "image"), 0);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+            horizontal = !horizontal;
+        }
+
+        // ============ SSAO: GEOMETRY PASS ============
         glBindFramebuffer(GL_FRAMEBUFFER, ssaoDepthFBO);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(depthShaderProgram);
         glUniformMatrix4fv(glGetUniformLocation(depthShaderProgram, "view"), 1, GL_FALSE, (float*)view);
         glUniformMatrix4fv(glGetUniformLocation(depthShaderProgram, "projection"), 1, GL_FALSE, (float*)projection);
-
         renderScene(depthShaderProgram, cubeVAO, cubes, 10);
 
-        // 3. SSAO Pass
+        // ============ SSAO: COMPUTE OCCLUSION ============
         glBindFramebuffer(GL_FRAMEBUFFER, ssaoFBO);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(ssaoShaderProgram);
@@ -441,7 +583,7 @@ int main() {
         glBindVertexArray(quadVAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        // 4. Blur Pass
+        // ============ SSAO: BLUR ============
         glBindFramebuffer(GL_FRAMEBUFFER, ssaoBlurFBO);
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(blurShaderProgram);
@@ -450,16 +592,29 @@ int main() {
         glUniform1i(glGetUniformLocation(blurShaderProgram, "ssaoInput"), 0);
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
-        // 5. Composite Pass
+        // ============ FINAL POST-PROCESSING: HDR + BLOOM + SSAO ============
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-        glUseProgram(compositeShaderProgram);
+        glUseProgram(postProcShaderProgram);
+        
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, sceneColorBuffer);
+        glBindTexture(GL_TEXTURE_2D, postProcColorBuffer);
         glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, bloomColorBuffers[!horizontal]);
+        glActiveTexture(GL_TEXTURE2);
         glBindTexture(GL_TEXTURE_2D, ssaoColorBufferBlur);
-        glUniform1i(glGetUniformLocation(compositeShaderProgram, "sceneColor"), 0);
-        glUniform1i(glGetUniformLocation(compositeShaderProgram, "ssaoColor"), 1);
+
+        glUniform1i(glGetUniformLocation(postProcShaderProgram, "hdrBuffer"), 0);
+        glUniform1i(glGetUniformLocation(postProcShaderProgram, "bloomBlur"), 1);
+        glUniform1i(glGetUniformLocation(postProcShaderProgram, "ssaoColor"), 2);
+        glUniform1f(glGetUniformLocation(postProcShaderProgram, "exposure"), exposure);
+        glUniform1f(glGetUniformLocation(postProcShaderProgram, "bloomStrength"), bloomStrength);
+        glUniform1i(glGetUniformLocation(postProcShaderProgram, "useBloom"), useBloom);
+        glUniform1i(glGetUniformLocation(postProcShaderProgram, "useSSAO"), useSSAO);
+
+        glUniform1f(glGetUniformLocation(postProcShaderProgram, "gamma"), 1.6f);
+        glUniform1i(glGetUniformLocation(postProcShaderProgram, "toneMapMode"), 1);
+
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
         glfwSwapBuffers(window);
@@ -467,29 +622,35 @@ int main() {
     }
 
     // Cleanup
+    glDeleteFramebuffers(1, &hdrMsaaFBO);
+    glDeleteFramebuffers(1, &postProcFBO);
+    glDeleteFramebuffers(2, bloomFBO);
+    glDeleteTextures(1, &hdrMsaaColorBuffer);
+    glDeleteTextures(1, &postProcColorBuffer);
+    glDeleteTextures(2, bloomColorBuffers);
+    glDeleteRenderbuffers(1, &hdrMsaaRboDepth);
     glDeleteVertexArrays(1, &cubeVAO);
     glDeleteVertexArrays(1, &quadVAO);
     glDeleteBuffers(1, &cubeVBO);
     glDeleteBuffers(1, &quadVBO);
     glDeleteFramebuffers(1, &ssaoDepthFBO);
-    glDeleteFramebuffers(1, &sceneFBO);
     glDeleteFramebuffers(1, &ssaoFBO);
     glDeleteFramebuffers(1, &ssaoBlurFBO);
     glDeleteFramebuffers(3, depthMapFBO);
     glDeleteTextures(1, &gPosition);
     glDeleteTextures(1, &gNormal);
-    glDeleteTextures(1, &sceneColorBuffer);
     glDeleteTextures(1, &ssaoColorBuffer);
     glDeleteTextures(1, &ssaoColorBufferBlur);
     glDeleteTextures(1, &noiseTexture);
     glDeleteTextures(3, depthCubemaps);
     glDeleteRenderbuffers(1, &rboDepth);
-    glDeleteRenderbuffers(1, &sceneRboDepth);
     glDeleteProgram(forwardShaderProgram);
     glDeleteProgram(depthShaderProgram);
     glDeleteProgram(ssaoShaderProgram);
     glDeleteProgram(blurShaderProgram);
-    glDeleteProgram(compositeShaderProgram);
+    glDeleteProgram(brightnessShaderProgram);
+    glDeleteProgram(gaussianBlurShaderProgram);
+    glDeleteProgram(postProcShaderProgram);
     glDeleteProgram(shadowShaderProgram);
     
     free(camera);
