@@ -10,6 +10,7 @@ void CAMERA_init(Camera* camera) {
     camera->pitch = 0.0f;
     camera->firstMouse = 1;
     camera->speed = 2.5f;
+    camera->fov = 45.0f;
 }
 void CAMERA_mouseRotation(Camera* camera,GLFWwindow* window, double xpos, double ypos)
 {
@@ -60,4 +61,15 @@ void CAMERA_wasd(Camera* camera, GLFWwindow* window, double deltaTime)
         glm_vec3_scale(crossVec, cameraSpeed, temp);
         glm_vec3_add(camera->cameraPos, temp, camera->cameraPos);
     }
+}
+void CAMERA_perspective(Camera* camera, int screenX, int screenY,mat4 view, mat4 projection)
+{
+    vec3 target = {
+        camera->cameraPos[0] + camera->cameraFront[0], 
+        camera->cameraPos[1] + camera->cameraFront[1], 
+        camera->cameraPos[2] + camera->cameraFront[2]
+    };
+    glm_lookat(camera->cameraPos, target, camera->cameraUp, view);
+    glm_perspective(glm_rad(camera->fov), (float)screenX/(float)screenY, 0.1f, 100.0f, projection);
+
 }
