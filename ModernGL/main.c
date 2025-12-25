@@ -367,12 +367,12 @@ int main() {
     glUniform1i(glGetUniformLocation(ssaoShaderProgram, "gNormal"), 1);
     glUniform1i(glGetUniformLocation(ssaoShaderProgram, "texNoise"), 2);
 
-    float farPlane = 250.0f;
+    float farPlane =100.0f;
     
     // Post-processing parameters
-    float exposure = 0.8f;
-    float bloomThreshold = 0.9f;
-    float bloomStrength = 0.2f;
+    float exposure = 0.6f;
+    float bloomThreshold = 0.95f;
+    float bloomStrength = 0.7f;
     int blurAmount = 30;
     bool useBloom = true;
     bool useSSAO = true;
@@ -406,7 +406,7 @@ int main() {
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "numLights"), sizeof(lights)/sizeof(Light));
         glUniform1f(glGetUniformLocation(forwardShaderProgram, "farPlane"), farPlane);
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "shadowMapCount"), sizeof(lights)/sizeof(Light));
-        glUniform1f(glGetUniformLocation(forwardShaderProgram, "shadowDarkness"), 1.0f);
+        glUniform1f(glGetUniformLocation(forwardShaderProgram, "shadowDarkness"), 1.3f);
         SHADOWS_dynamicShadowMaps(lights, sizeof(lights)/sizeof(Light), &forwardShaderProgram);
         LIGHTING_sendLightsToShader(&forwardShaderProgram,lights, sizeof(lights)/sizeof(Light));
         glBindVertexArray(cubeVAO);
@@ -508,7 +508,7 @@ int main() {
         glUniform1i(glGetUniformLocation(postProcShaderProgram, "useBloom"), useBloom);
         glUniform1i(glGetUniformLocation(postProcShaderProgram, "useSSAO"), useSSAO);
 
-        glUniform1f(glGetUniformLocation(postProcShaderProgram, "gamma"), 1.6f);
+        glUniform1f(glGetUniformLocation(postProcShaderProgram, "gamma"), 2.6f);
         glUniform1i(glGetUniformLocation(postProcShaderProgram, "toneMapMode"), 1);
 
         glDrawArrays(GL_TRIANGLES, 0, 6);
