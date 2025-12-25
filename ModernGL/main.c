@@ -367,7 +367,7 @@ int main() {
     glUniform1i(glGetUniformLocation(ssaoShaderProgram, "gNormal"), 1);
     glUniform1i(glGetUniformLocation(ssaoShaderProgram, "texNoise"), 2);
 
-    float farPlane = 25.0f;
+    float farPlane = 250.0f;
     
     // Post-processing parameters
     float exposure = 0.8f;
