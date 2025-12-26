@@ -20,3 +20,5 @@ extern const char *brightnessVertexShaderSource;
 extern const char *brightnessFragmentShaderSource;
 extern const char *gaussianBlurFragmentShaderSource;
 extern const char *postProcFragmentShaderSource;
+extern const char *unlitFragmentShaderSource;
+extern const char *unlitVertexShaderSource;

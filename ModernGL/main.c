@@ -93,6 +93,7 @@ int main() {
 
     // Compile shaders
     unsigned int forwardShaderProgram = compileShaderProgram(forwardVertexShaderSource, forwardFragmentShaderSource);
+    unsigned int unlitShaderProgram = compileShaderProgram(unlitVertexShaderSource, unlitFragmentShaderSource);
     unsigned int depthShaderProgram = compileShaderProgram(depthVertexShaderSource, depthFragmentShaderSource);
     unsigned int ssaoShaderProgram = compileShaderProgram(ssaoVertexShaderSource, ssaoFragmentShaderSource);
     unsigned int blurShaderProgram = compileShaderProgram(ssaoVertexShaderSource, blurFragmentShaderSource);
@@ -278,6 +279,38 @@ int main() {
 
     // Create scene with full material properties
     Cube cubes[10];
+    Cube lightCubes[3];
+
+    lightCubes[0] = (Cube){ 
+        .position = {0.0f, -1.5f, 0.0f}, 
+        .scale = {2.0f, 2.0f, 2.0f}, 
+        .rotation = {0,0,0}, 
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .shininess = 50.0f,
+        .diffuseStrength = 1.1f,
+        .specularStrength = 0.5f,
+        .ambientStrength = 0.2f
+    };
+    lightCubes[1] = (Cube){ 
+        .position = {0.0f, -1.5f, 0.0f}, 
+        .scale = {2.0f, 2.0f, 2.0f}, 
+        .rotation = {0,0,0}, 
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .shininess = 50.0f,
+        .diffuseStrength = 1.1f,
+        .specularStrength = 0.5f,
+        .ambientStrength = 0.2f
+    };
+    lightCubes[2] = (Cube){ 
+        .position = {0.0f, -1.5f, 0.0f}, 
+        .scale = {2.0f, 2.0f, 2.0f}, 
+        .rotation = {0,0,0}, 
+        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .shininess = 50.0f,
+        .diffuseStrength = 1.1f,
+        .specularStrength = 0.5f,
+        .ambientStrength = 0.2f
+    };
 
     // Floor
     cubes[0] = (Cube){ 
@@ -392,12 +425,14 @@ int main() {
         mat4 view, projection;
         CAMERA_perspective(camera,screenX, screenY,view,projection);
         //Shadow pass
-        for(int lightIdx = 0; lightIdx < sizeof(lights)/sizeof(Light); lightIdx++) {SHADOWS_shadowPassSetup(lights, lightIdx, farPlane);renderScene(shadowShaderProgram, cubeVAO, cubes, 10);}
+        for(int lightIdx = 0; lightIdx < sizeof(lights)/sizeof(Light); lightIdx++) {SHADOWS_shadowPassSetup(lights, lightIdx, farPlane);
+            renderScene(shadowShaderProgram, cubeVAO, cubes, 10);
+        }
         glViewport(0, 0, screenX, screenY);
 
         // ============ FORWARD RENDERING PASS (to HDR MSAA buffer) ============
         glBindFramebuffer(GL_FRAMEBUFFER, hdrMsaaFBO);
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(forwardShaderProgram);
         
@@ -425,7 +460,23 @@ int main() {
             glUniform1f(glGetUniformLocation(forwardShaderProgram, "material.shininess"), cubes[i].shininess);
             glDrawArrays(GL_TRIANGLES, 0, 36);
         }
+                // Now render the light cubes (unlit, bright) into the SAME buffer
+        glUseProgram(unlitShaderProgram);
+        glBindVertexArray(cubeVAO);
+        glUniformMatrix4fv(glGetUniformLocation(unlitShaderProgram, "view"), 1, GL_FALSE, (float*)view);
+        glUniformMatrix4fv(glGetUniformLocation(unlitShaderProgram, "projection"), 1, GL_FALSE, (float*)projection);
 
+        for(int i = 0; i < sizeof(lights)/sizeof(Light); i++) {
+            mat4 model;
+            glm_mat4_identity(model);
+            glm_translate(model, lights[i].position);
+            glm_scale(model, (vec3){0.3f, 0.3f, 0.3f});
+            glUniformMatrix4fv(glGetUniformLocation(unlitShaderProgram, "model"), 1, GL_FALSE, (float*)model);
+            
+            vec4 emissiveColor = {lights[i].color[0] * 6.0f, lights[i].color[1] * 6.0f, lights[i].color[2] * 6.0f, 1.0f};
+            glUniform4fv(glGetUniformLocation(unlitShaderProgram, "objectColor"), 1, emissiveColor);
+            glDrawArrays(GL_TRIANGLES, 0, 36);
+        }
         // ============ RESOLVE MSAA TO POST-PROCESSING BUFFER ============
         glBindFramebuffer(GL_READ_FRAMEBUFFER, hdrMsaaFBO);
         glBindFramebuffer(GL_DRAW_FRAMEBUFFER, postProcFBO);

@@ -50,7 +50,7 @@ void SHADOWS_shadowPassSetup(Light* lights, int lightIdx, float farPlane)
     glClear(GL_DEPTH_BUFFER_BIT);
     
     mat4 shadowProj;
-    glm_perspective(glm_rad(90.0f), 1.0f, 1.0f, farPlane, shadowProj);
+    glm_perspective(glm_rad(90.0f), 1.0f, 0.1f, farPlane, shadowProj);
     
     vec3 targets[6] = {
         {1.0f, 0.0f, 0.0f}, {-1.0f, 0.0f, 0.0f},
