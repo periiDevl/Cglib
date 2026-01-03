@@ -385,7 +385,7 @@ int main() {
     };
 
     Light lights[3];
-    lights[0] = (Light){ .position = {3.0f, 3.0f, 3.0f}, .color = {0.9f, 0.9f, 0.9f}, .ambient = 0.1f, .diffuse = 0.8f, .specular = 1.0f };
+    lights[0] = (Light){ .position = {3.0f, 3.0f, 3.0f}, .color = {1.2f, 1.2f, 1.2f}, .ambient = 0.1f, .diffuse = 0.8f, .specular = 1.0f };
     lights[1] = (Light){ .position = {-3.0f, 2.0f, -2.0f}, .color = {0.7f, 0.7f, 0.7f}, .ambient = 0.1f, .diffuse = 0.6f, .specular = 0.5f };
     lights[2] = (Light){ .position = {0.0f, 4.0f, 0.0f}, .color = {0.6f, 0.6f, 0.6f}, .ambient = 0.1f, .diffuse = 0.5f, .specular = 0.3f };
 
@@ -403,10 +403,10 @@ int main() {
     float farPlane =100.0f;
     
     // Post-processing parameters
-    float exposure = 0.6f;
+    float exposure = 1.0f;
     float bloomThreshold = 0.95f;
-    float bloomStrength = 0.7f;
-    int blurAmount = 30;
+    float bloomStrength = 0.5f;
+    int blurAmount = 18;
     bool useBloom = true;
     bool useSSAO = true;
 
@@ -432,7 +432,7 @@ int main() {
 
         // ============ FORWARD RENDERING PASS (to HDR MSAA buffer) ============
         glBindFramebuffer(GL_FRAMEBUFFER, hdrMsaaFBO);
-        glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
         glUseProgram(forwardShaderProgram);
         
@@ -441,7 +441,7 @@ int main() {
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "numLights"), sizeof(lights)/sizeof(Light));
         glUniform1f(glGetUniformLocation(forwardShaderProgram, "farPlane"), farPlane);
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "shadowMapCount"), sizeof(lights)/sizeof(Light));
-        glUniform1f(glGetUniformLocation(forwardShaderProgram, "shadowDarkness"), 1.3f);
+        glUniform1f(glGetUniformLocation(forwardShaderProgram, "shadowDarkness"), 1.2f);
         SHADOWS_dynamicShadowMaps(lights, sizeof(lights)/sizeof(Light), &forwardShaderProgram);
         LIGHTING_sendLightsToShader(&forwardShaderProgram,lights, sizeof(lights)/sizeof(Light));
         glBindVertexArray(cubeVAO);
