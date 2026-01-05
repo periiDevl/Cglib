@@ -285,7 +285,7 @@ int main() {
         .position = {0.0f, -1.5f, 0.0f}, 
         .scale = {2.0f, 2.0f, 2.0f}, 
         .rotation = {0,0,0}, 
-        .color = {1.0f, 1.0f, 1.0f, 1.0f},
+        .color = {1.5f, 1.5f, 1.5f, 1.0f},
         .shininess = 50.0f,
         .diffuseStrength = 1.1f,
         .specularStrength = 0.5f,
@@ -385,11 +385,38 @@ int main() {
     };
 
     Light lights[3];
-    lights[0] = (Light){ .position = {3.0f, 3.0f, 3.0f}, .color = {1.2f, 1.2f, 1.2f}, .ambient = 0.1f, .diffuse = 0.8f, .specular = 1.0f };
-    lights[1] = (Light){ .position = {-3.0f, 2.0f, -2.0f}, .color = {0.7f, 0.7f, 0.7f}, .ambient = 0.1f, .diffuse = 0.6f, .specular = 0.5f };
-    lights[2] = (Light){ .position = {0.0f, 4.0f, 0.0f}, .color = {0.6f, 0.6f, 0.6f}, .ambient = 0.1f, .diffuse = 0.5f, .specular = 0.3f };
+    lights[0] = (Light){ 
+        .position = {3.0f, 3.0f, 3.0f}, 
+        .color = {1.1f, 1.1f, 1.1f}, 
+        .ambient = 0.1f, 
+        .diffuse = 0.8f, 
+        .specular = 1.0f,
+        .constant = 1.0f,
+        .linear = 0.09f,
+        .quadratic = 0.032f
+    };
 
-    // Send SSAO samples to shader
+    lights[1] = (Light){ 
+        .position = {-3.0f, 2.0f, -2.0f}, 
+        .color = {0.7f, 0.7f, 0.7f}, 
+        .ambient = 0.1f, 
+        .diffuse = 0.6f, 
+        .specular = 0.5f,
+        .constant = 1.0f,
+        .linear = 0.14f,
+        .quadratic = 0.07f
+    };
+
+    lights[2] = (Light){ 
+        .position = {0.0f, 4.0f, 0.0f}, 
+        .color = {0.6f, 0.3f, 0.3f}, 
+        .ambient = 0.1f, 
+        .diffuse = 0.5f, 
+        .specular = 0.3f,
+        .constant = 1.0f,
+        .linear = 0.22f,
+        .quadratic = 0.20f
+    };
     glUseProgram(ssaoShaderProgram);
     for(int i = 0; i < 64; ++i) {
         char name[32];
@@ -403,8 +430,8 @@ int main() {
     float farPlane =100.0f;
     
     // Post-processing parameters
-    float exposure = 1.0f;
-    float bloomThreshold = 0.95f;
+    float exposure = 0.7f;
+    float bloomThreshold = 1.25f;
     float bloomStrength = 0.5f;
     int blurAmount = 18;
     bool useBloom = true;
@@ -441,7 +468,7 @@ int main() {
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "numLights"), sizeof(lights)/sizeof(Light));
         glUniform1f(glGetUniformLocation(forwardShaderProgram, "farPlane"), farPlane);
         glUniform1i(glGetUniformLocation(forwardShaderProgram, "shadowMapCount"), sizeof(lights)/sizeof(Light));
-        glUniform1f(glGetUniformLocation(forwardShaderProgram, "shadowDarkness"), 1.2f);
+        glUniform1f(glGetUniformLocation(forwardShaderProgram, "shadowDarkness"), 1.3f);
         SHADOWS_dynamicShadowMaps(lights, sizeof(lights)/sizeof(Light), &forwardShaderProgram);
         LIGHTING_sendLightsToShader(&forwardShaderProgram,lights, sizeof(lights)/sizeof(Light));
         glBindVertexArray(cubeVAO);

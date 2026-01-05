@@ -82,20 +82,25 @@ void SHADOWS_shadowPassSetup(Light* lights, int lightIdx, float farPlane)
     glUniform1f(glGetUniformLocation(shadowShaderProgram, "farPlane"), farPlane);
     
 }
-void LIGHTING_sendLightsToShader(unsigned int* shader,Light* lights, int numLights)
-{
+void LIGHTING_sendLightsToShader(unsigned int* shaderProgram, Light* lights, int numLights) {
     for(int i = 0; i < numLights; i++) {
-        char name[50];
-        sprintf(name, "lights[%d].position", i);
-        glUniform3fv(glGetUniformLocation(*shader, name), 1, lights[i].position);
-        sprintf(name, "lights[%d].color", i);
-        glUniform3fv(glGetUniformLocation(*shader, name), 1, lights[i].color);
-        sprintf(name, "lights[%d].ambient", i);
-        glUniform1f(glGetUniformLocation(*shader, name), lights[i].ambient);
-        sprintf(name, "lights[%d].diffuse", i);
-        glUniform1f(glGetUniformLocation(*shader, name), lights[i].diffuse);
-        sprintf(name, "lights[%d].specular", i);
-        glUniform1f(glGetUniformLocation(*shader, name), lights[i].specular);
+        char uniformName[64];
+        sprintf(uniformName, "lights[%d].position", i);
+        glUniform3fv(glGetUniformLocation(*shaderProgram, uniformName), 1, lights[i].position);
+        sprintf(uniformName, "lights[%d].color", i);
+        glUniform3fv(glGetUniformLocation(*shaderProgram, uniformName), 1, lights[i].color);
+        sprintf(uniformName, "lights[%d].ambient", i);
+        glUniform1f(glGetUniformLocation(*shaderProgram, uniformName), lights[i].ambient);
+        sprintf(uniformName, "lights[%d].diffuse", i);
+        glUniform1f(glGetUniformLocation(*shaderProgram, uniformName), lights[i].diffuse);
+        sprintf(uniformName, "lights[%d].specular", i);
+        glUniform1f(glGetUniformLocation(*shaderProgram, uniformName), lights[i].specular);
+        sprintf(uniformName, "lights[%d].constant", i);
+        glUniform1f(glGetUniformLocation(*shaderProgram, uniformName), lights[i].constant);
+        sprintf(uniformName, "lights[%d].linear", i);
+        glUniform1f(glGetUniformLocation(*shaderProgram, uniformName), lights[i].linear);
+        sprintf(uniformName, "lights[%d].quadratic", i);
+        glUniform1f(glGetUniformLocation(*shaderProgram, uniformName), lights[i].quadratic);
     }
 }
 void SHADOWS_dynamicShadowMaps(Light* lights, int lightSize, unsigned int* shader)

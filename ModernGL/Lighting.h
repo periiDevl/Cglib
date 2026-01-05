@@ -10,6 +10,9 @@ typedef struct {
     float ambient;
     float diffuse;
     float specular;
+    float constant; 
+    float linear;   
+    float quadratic;
 } Light;
 //LIGHTS:
 void LIGHTING_sendLightsToShader(unsigned int* shader,Light* lights, int numLights);
